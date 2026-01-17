@@ -19,7 +19,7 @@
 
 <div align="center">
   <a href="https://drive.google.com/file/d/1l6if_ohm6c3xz5WzosuzGuvcK7F3ad_u/view?usp=sharing">
-    <img src="https://raw.githubusercontent.com/abs768/docgpt/main/assets/demo-screenshot.png" alt="DocGPT Production System Demo" width="850"/>
+    <img src="https://raw.githubusercontent.com/abs768/docgpt/main/assets/demo-screenshot.png](https://raw.githubusercontent.com/abs768/intelligent-doc-rag/main/assets/demo-screenshot.png" alt="DocGPT Production System Demo" width="850"/>
   </a>
   
   **📹 [Watch Full System Walkthrough](https://drive.google.com/file/d/1l6if_ohm6c3xz5WzosuzGuvcK7F3ad_u/view?usp=sharing) (2 minutes)**
