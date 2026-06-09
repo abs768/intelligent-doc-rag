@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.chatassistant.aichatassistant.dto.RetrievalResult;
+import com.chatassistant.aichatassistant.dto.RetrievedChunk;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -170,6 +171,76 @@ public class QdrantService {
         } catch (Exception e) {
             throw new RuntimeException("Qdrant searchWithSources failed", e);
         }
+    }
+
+    /**
+     * Like searchWithSources(), but returns one structured RetrievedChunk per hit —
+     * with documentId, filename, chunkIndex, content, and similarity score. Used by
+     * the grounded-RAG path to build verifiable citations.
+     *
+     * Tenant isolation still enforced via the userId MUST filter.
+     */
+    public List<RetrievedChunk> searchWithCitations(
+            UUID userId,
+            List<Float> queryVector,
+            int limit,
+            List<UUID> documentIds
+    ) {
+        if (userId == null || queryVector == null || queryVector.isEmpty() || limit <= 0) {
+            return List.of();
+        }
+        if (queryVector.size() != VECTOR_SIZE) {
+            throw new IllegalArgumentException(
+                    "Query vector dimension mismatch: expected " + VECTOR_SIZE + ", got " + queryVector.size());
+        }
+
+        try {
+            Points.Filter filter = buildSearchFilter(userId, documentIds);
+
+            Points.SearchPoints request = Points.SearchPoints.newBuilder()
+                    .setCollectionName(collectionName)
+                    .addAllVector(queryVector)
+                    .setLimit(limit)
+                    .setWithPayload(Points.WithPayloadSelector.newBuilder().setEnable(true).build())
+                    .setFilter(filter)
+                    .build();
+
+            List<Points.ScoredPoint> results = client.searchAsync(request).get();
+
+            List<RetrievedChunk> chunks = new ArrayList<>(results.size());
+            for (Points.ScoredPoint p : results) {
+                var payload = p.getPayloadMap();
+                String docIdStr = stringField(payload, "documentId");
+                String content  = stringField(payload, "content");
+                String filename = stringField(payload, "filename");
+                int chunkIndex  = intField(payload, "chunkIndex");
+
+                if (docIdStr.isEmpty() || content.isEmpty()) continue;
+
+                chunks.add(new RetrievedChunk(
+                        UUID.fromString(docIdStr),
+                        filename,
+                        chunkIndex,
+                        content,
+                        null,            // page not currently captured
+                        p.getScore()
+                ));
+            }
+            return chunks;
+
+        } catch (Exception e) {
+            throw new RuntimeException("Qdrant searchWithCitations failed", e);
+        }
+    }
+
+    private static String stringField(Map<String, io.qdrant.client.grpc.JsonWithInt.Value> payload, String key) {
+        var v = payload.get(key);
+        return v == null ? "" : v.getStringValue();
+    }
+
+    private static int intField(Map<String, io.qdrant.client.grpc.JsonWithInt.Value> payload, String key) {
+        var v = payload.get(key);
+        return v == null ? 0 : (int) v.getIntegerValue();
     }
 
     // ======================== DELETE ========================

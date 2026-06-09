@@ -37,4 +37,21 @@ public class ChatController {
         ChatResponse response = chatService.chat(user.getId(), req);
         return ResponseEntity.ok(response);
     }
+
+    /**
+     * Grounded RAG endpoint — separate from /api/chat so the existing prose flow keeps
+     * working unchanged. Returns a {@link ChatResponse} with non-null citations linked
+     * to the actual retrieved chunks; refuses if no chunks match or the model fails
+     * to cite anything.
+     */
+    @PostMapping("/grounded")
+    public ResponseEntity<ChatResponse> chatGrounded(
+            @AuthenticationPrincipal User user,
+            @RequestBody ChatRequest req
+    ) {
+        if (req.message() == null || req.message().isBlank()) {
+            throw new IllegalArgumentException("Message cannot be empty");
+        }
+        return ResponseEntity.ok(chatService.chatGrounded(user.getId(), req));
+    }
 }

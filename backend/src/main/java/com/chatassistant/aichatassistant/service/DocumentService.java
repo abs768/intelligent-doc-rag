@@ -1,6 +1,7 @@
 package com.chatassistant.aichatassistant.service;
 
 import com.chatassistant.aichatassistant.dto.RetrievalResult;
+import com.chatassistant.aichatassistant.dto.RetrievedChunk;
 import com.chatassistant.aichatassistant.entity.Document;
 import com.chatassistant.aichatassistant.exception.BadRequestException;
 import com.chatassistant.aichatassistant.exception.ServiceUnavailableException;
@@ -200,6 +201,27 @@ public class DocumentService {
 
         List<Float> queryVector = embeddingService.embed(query);
         return qdrantService.searchWithSources(userId, queryVector, limit, documentIds);
+    }
+
+    /**
+     * Retrieves the top-K most similar chunks for {@code query}, with full per-chunk
+     * metadata for citation building. Same authorization rules as
+     * findRelevantChunksWithSources — selected documents must belong to the user.
+     */
+    public List<RetrievedChunk> findRelevantChunksForCitations(
+            UUID userId, String query, int limit, List<UUID> documentIds
+    ) {
+        if (query == null || query.isBlank()) return List.of();
+
+        if (documentIds != null && !documentIds.isEmpty()) {
+            for (UUID docId : documentIds) {
+                documentRepo.findByIdAndUserId(docId, userId)
+                        .orElseThrow(() -> new IllegalArgumentException("Access denied for document: " + docId));
+            }
+        }
+
+        List<Float> queryVector = embeddingService.embed(query);
+        return qdrantService.searchWithCitations(userId, queryVector, limit, documentIds);
     }
 
     // ======================== DELETE ========================
