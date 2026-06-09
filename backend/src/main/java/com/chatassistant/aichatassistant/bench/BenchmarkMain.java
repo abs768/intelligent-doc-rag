@@ -6,26 +6,37 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 /**
  * CLI benchmark for Ollama models against a fixed prompt suite.
  *
- * Run (from the backend/ directory):
- *   ./mvnw spring-boot:run \
+ * Methodology:
+ *   - For each (model, prompt) pair we run N iterations (default 3) and capture timing
+ *     from Ollama's own response payload — load_duration, prompt_eval_duration,
+ *     eval_count, eval_duration.
+ *   - TTFT is approximated as (load_duration + prompt_eval_duration). Streaming would
+ *     give a more precise number.
+ *   - Quality is scored ONLY for the `json` category (valid JSON object + required
+ *     keys present). The `factual` and `rag` categories are reported as latency/
+ *     throughput only — substring matching is too loose to call correctness.
+ *
+ * Run from backend/:
+ *   mvn spring-boot:run \
  *     -Dspring-boot.run.main-class=com.chatassistant.aichatassistant.bench.BenchmarkMain \
- *     -Dspring-boot.run.arguments="--models=llama3.2:1b,phi3:mini --iterations=3"
+ *     -Dspring-boot.run.arguments="--models=llama3.2:3b,llama3:latest --iterations=3"
  *
  * Args:
- *   --models=<csv>        comma-separated Ollama model tags (already pulled)
- *   --iterations=<n>      runs per (model, prompt). default 3
- *   --ollama-url=<url>    default http://localhost:11434
- *   --prompts=<path>      override prompt suite YAML. default bundled bench/prompts.yaml
- *   --output-dir=<path>   default ./bench-reports
+ *   --models=<csv>        Ollama model tags (already pulled).
+ *   --iterations=<n>      Iterations per (model, prompt). Default 3.
+ *   --ollama-url=<url>    Default http://localhost:11434.
+ *   --prompts=<path>      Override prompt suite YAML. Default classpath bench/prompts.yaml.
+ *   --output=<path>       Canonical report path. Default docs/benchmark.md.
+ *   --history-dir=<path>  Timestamped copy directory. Default bench-reports. Empty disables.
  */
 public final class BenchmarkMain {
 
@@ -33,7 +44,7 @@ public final class BenchmarkMain {
         Args parsed = Args.parse(args);
         if (parsed.models.isEmpty()) {
             System.err.println("ERROR: --models is required (comma-separated list of Ollama model tags)");
-            System.err.println("Example: --models=llama3.2:1b,phi3:mini,mistral:7b-instruct");
+            System.err.println("Example: --models=llama3.2:3b,llama3:latest");
             System.exit(2);
         }
 
@@ -63,18 +74,27 @@ public final class BenchmarkMain {
                 for (int iter = 0; iter < parsed.iterations; iter++) {
                     BenchResult r = runOne(client, mapper, model, p, iter);
                     results.add(r);
-                    log("  [%s][%s iter=%d] %dms tok/s=%.1f correct=%s",
-                            model, p.id(), iter, r.latencyMs(), r.tokensPerSec(), r.correct());
+                    String correctness = "json".equals(p.category()) ? (r.correct() ? " ✓" : " ✗") : "";
+                    log("  [%s][%s iter=%d] %dms tok/s=%.1f%s",
+                            model, p.id(), iter, r.latencyMs(), r.tokensPerSec(), correctness);
                 }
             }
 
             modelSizes.put(model, client.loadedModelSizeBytes(model));
         }
 
-        Path outDir = parsed.outputDir;
-        Path report = ReportWriter.write(
-                outDir, parsed.models, prompts, results, modelSizes, parsed.iterations, parsed.ollamaUrl);
-        log("Report written: %s", report.toAbsolutePath());
+        String markdown = ReportWriter.render(
+                parsed.models, prompts, results, modelSizes, parsed.iterations, parsed.ollamaUrl);
+
+        Path canonical = ReportWriter.writeToFile(parsed.outputPath, markdown);
+        log("Canonical report: %s", canonical.toAbsolutePath());
+
+        if (parsed.historyDir != null) {
+            String stamp = Instant.now().toString().replace(':', '-').replaceAll("\\..*", "");
+            Path historyFile = parsed.historyDir.resolve("REPORT-" + stamp + ".md");
+            ReportWriter.writeToFile(historyFile, markdown);
+            log("History copy:     %s", historyFile.toAbsolutePath());
+        }
     }
 
     // ---------------- per-call ----------------
@@ -113,19 +133,16 @@ public final class BenchmarkMain {
 
     // ---------------- scoring ----------------
 
+    /**
+     * Only the json category is scored for quality. factual/rag previously used
+     * substring matching on a reference answer, but that proved too fragile to
+     * defend as a quality measure — see prompts.yaml for the reference fields,
+     * left in as informational only.
+     */
     private static boolean score(Prompt p, String output, ObjectMapper mapper) {
+        if (!"json".equals(p.category())) return false;
         if (output == null || output.isBlank()) return false;
-        return switch (p.category()) {
-            case "json" -> scoreJson(p, output, mapper);
-            case "factual", "rag" -> scoreContains(p, output);
-            default -> false;
-        };
-    }
-
-    private static boolean scoreContains(Prompt p, String output) {
-        if (p.goldContains().isEmpty()) return true; // no gold = treat as pass
-        String lower = output.toLowerCase(Locale.ROOT);
-        return p.goldContains().stream().allMatch(s -> lower.contains(s.toLowerCase(Locale.ROOT)));
+        return scoreJson(p, output, mapper);
     }
 
     private static boolean scoreJson(Prompt p, String output, ObjectMapper mapper) {
@@ -144,14 +161,20 @@ public final class BenchmarkMain {
     // ---------------- args ----------------
 
     private record Args(
-            List<String> models, int iterations, String ollamaUrl, Path promptsPath, Path outputDir
+            List<String> models,
+            int iterations,
+            String ollamaUrl,
+            Path promptsPath,
+            Path outputPath,
+            Path historyDir
     ) {
         static Args parse(String[] argv) {
             List<String> models = List.of();
             int iterations = 3;
             String url = "http://localhost:11434";
             Path prompts = null;
-            Path outDir = Paths.get("bench-reports");
+            Path outputPath = Paths.get("docs", "benchmark.md");
+            Path historyDir = Paths.get("bench-reports");
 
             for (String arg : argv) {
                 if (arg.startsWith("--models=")) {
@@ -162,11 +185,14 @@ public final class BenchmarkMain {
                     url = arg.substring("--ollama-url=".length());
                 } else if (arg.startsWith("--prompts=")) {
                     prompts = Paths.get(arg.substring("--prompts=".length()));
-                } else if (arg.startsWith("--output-dir=")) {
-                    outDir = Paths.get(arg.substring("--output-dir=".length()));
+                } else if (arg.startsWith("--output=")) {
+                    outputPath = Paths.get(arg.substring("--output=".length()));
+                } else if (arg.startsWith("--history-dir=")) {
+                    String v = arg.substring("--history-dir=".length());
+                    historyDir = v.isBlank() ? null : Paths.get(v);
                 }
             }
-            return new Args(models, iterations, url, prompts, outDir);
+            return new Args(models, iterations, url, prompts, outputPath, historyDir);
         }
     }
 
