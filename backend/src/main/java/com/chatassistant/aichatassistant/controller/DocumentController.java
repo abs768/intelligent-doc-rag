@@ -1,17 +1,16 @@
 package com.chatassistant.aichatassistant.controller;
 
-import com.chatassistant.aichatassistant.entity.Document;
+import com.chatassistant.aichatassistant.dto.DocumentResponse;
+import com.chatassistant.aichatassistant.dto.MessageResponse;
+import com.chatassistant.aichatassistant.dto.UploadResponse;
 import com.chatassistant.aichatassistant.entity.User;
 import com.chatassistant.aichatassistant.service.DocumentService;
-import org.apache.pdfbox.Loader;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.text.PDFTextStripper;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -26,87 +25,97 @@ public class DocumentController {
         this.documentService = documentService;
     }
 
+    // ======================== ORIGINAL UPLOAD (small files) ========================
+
     @PostMapping("/upload")
-    public ResponseEntity<Map<String, Object>> uploadDocument(
+    public ResponseEntity<UploadResponse> uploadDocument(
             @AuthenticationPrincipal User user,
             @RequestParam("file") MultipartFile file
     ) {
-        try {
-            if (user == null) return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+        UUID documentId = documentService.ingestDocument(user.getId(), file);
 
-            String filename = file.getOriginalFilename();
-            String content;
-
-            if (filename != null && filename.toLowerCase().endsWith(".pdf")) {
-                content = extractTextFromPdf(file);
-            } else {
-                content = new String(file.getBytes(), StandardCharsets.UTF_8);
-            }
-
-            UUID documentId = documentService.ingestDocument(user.getId(), filename, content);
-
-            return ResponseEntity.ok(Map.of(
-                    "documentId", documentId,
-                    "filename", filename,
-                    "message", "Document uploaded and indexed successfully"
-            ));
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.internalServerError().body(Map.of("error", "Upload failed: " + e.getMessage()));
-        }
+        return ResponseEntity.ok(new UploadResponse(
+                documentId,
+                file.getOriginalFilename(),
+                "Document uploaded and indexed successfully"
+        ));
     }
 
+    // ======================== CHUNKED UPLOAD (large files) ========================
+
+    /**
+     * POST /api/documents/upload-chunk
+     * Receives one 5MB slice of a large file. The frontend sends these sequentially.
+     * Each chunk is appended to a temp file identified by uploadId.
+     */
+    @PostMapping("/upload-chunk")
+    public ResponseEntity<Map<String, String>> uploadChunk(
+            @AuthenticationPrincipal User user,
+            @RequestParam("uploadId") UUID uploadId,
+            @RequestParam("chunk") MultipartFile chunk
+    ) {
+        documentService.appendChunk(uploadId, getBytesOrThrow(chunk));
+        return ResponseEntity.ok(Map.of("status", "chunk_received"));
+    }
+
+    /**
+     * POST /api/documents/upload-finalize
+     * Called after all chunks are uploaded. Assembles the file, creates the DB record,
+     * and kicks off @Async embedding. Returns 202 Accepted immediately.
+     */
+    @PostMapping("/upload-finalize")
+    public ResponseEntity<UploadResponse> finalizeUpload(
+            @AuthenticationPrincipal User user,
+            @RequestParam("uploadId") UUID uploadId,
+            @RequestParam("filename") String filename
+    ) {
+        UUID documentId = documentService.finalizeUpload(user.getId(), uploadId, filename);
+
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(new UploadResponse(
+                documentId,
+                filename,
+                "File received. Embedding in progress..."
+        ));
+    }
+
+    // ======================== LIST / DELETE ========================
+
     @GetMapping("/list")
-    public ResponseEntity<List<Map<String, Object>>> listDocuments(@AuthenticationPrincipal User user) {
-        if (user == null) return ResponseEntity.status(401).body(List.of());
+    public ResponseEntity<List<DocumentResponse>> listDocuments(
+            @AuthenticationPrincipal User user
+    ) {
+        List<DocumentResponse> docs = documentService.listDocuments(user.getId())
+                .stream()
+                .map(DocumentResponse::from)
+                .toList();
 
-        List<Document> docs = documentService.listDocuments(user.getId());
-
-        List<Map<String, Object>> out = docs.stream().map(d -> Map.<String, Object>of(
-                "documentId", d.getId(),
-                "filename", d.getFilename(),
-                "status", d.getStatus().name(),
-                "chunkCount", d.getChunkCount(),
-                "createdAt", d.getCreatedAt().toString()
-        )).toList();
-
-        return ResponseEntity.ok(out);
+        return ResponseEntity.ok(docs);
     }
 
     @DeleteMapping("/{documentId}")
-    public ResponseEntity<Map<String, Object>> deleteDocument(
+    public ResponseEntity<MessageResponse> deleteDocument(
             @AuthenticationPrincipal User user,
             @PathVariable UUID documentId
     ) {
-        try {
-            if (user == null) return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
-
-            documentService.deleteDocument(user.getId(), documentId);
-            return ResponseEntity.ok(Map.of("message", "Document deleted", "documentId", documentId));
-
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(Map.of("error", "Delete failed"));
-        }
+        documentService.deleteDocument(user.getId(), documentId);
+        return ResponseEntity.ok(new MessageResponse("Document deleted"));
     }
 
     @DeleteMapping("/all")
-    public ResponseEntity<Map<String, Object>> deleteAllDocuments(@AuthenticationPrincipal User user) {
-        try {
-            if (user == null) return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
-
-            documentService.deleteAllForUser(user.getId());
-            return ResponseEntity.ok(Map.of("message", "All documents deleted for user"));
-
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(Map.of("error", "Delete failed"));
-        }
+    public ResponseEntity<MessageResponse> deleteAllDocuments(
+            @AuthenticationPrincipal User user
+    ) {
+        documentService.deleteAllForUser(user.getId());
+        return ResponseEntity.ok(new MessageResponse("All documents deleted for user"));
     }
 
-    private String extractTextFromPdf(MultipartFile file) throws Exception {
-        try (PDDocument document = Loader.loadPDF(file.getBytes())) {
-            PDFTextStripper stripper = new PDFTextStripper();
-            return stripper.getText(document);
+    // ======================== HELPERS ========================
+
+    private byte[] getBytesOrThrow(MultipartFile chunk) {
+        try {
+            return chunk.getBytes();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to read chunk bytes", e);
         }
     }
 }

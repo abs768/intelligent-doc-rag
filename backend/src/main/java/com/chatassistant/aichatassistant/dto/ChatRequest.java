@@ -7,6 +7,8 @@ public record ChatRequest(
         UUID conversationId,
         String message,
         List<String> selectedDocuments,
-        boolean useRag
+        boolean useRag,
+        String persona,   // Module 3: "Analyst", "Commercial Lead", "Technical Lead", "External Merchant"
+        String language    // Module 3: "English", "Español"
 ) {
 }

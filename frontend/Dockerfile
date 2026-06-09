@@ -12,7 +12,9 @@ RUN npm install
 COPY public ./public
 COPY src ./src
 
-# Build
+# Build (REACT_APP_* must be set at build time; baked into static bundle)
+ARG REACT_APP_API_URL=http://localhost:8080
+ENV REACT_APP_API_URL=$REACT_APP_API_URL
 RUN npm run build
 
 # Production image with nginx

@@ -1,0 +1,340 @@
+# Benchmark prompt suite.
+#
+# Categories:
+#   factual    — general-knowledge prompts; output must contain every string in gold_contains.
+#   rag        — context provided inline in the user message; tests grounded extraction.
+#   json       — structured-output; response must parse as JSON and contain required_keys.
+#
+# Strings in gold_contains are matched case-insensitively as substrings.
+
+prompts:
+
+  # ---------------- factual ----------------
+
+  - id: fact-001
+    category: factual
+    system: "You are a concise assistant. Answer in one short sentence."
+    user: "What is the capital of France?"
+    gold_contains: ["Paris"]
+
+  - id: fact-002
+    category: factual
+    system: "You are a concise assistant. Answer with the chemical symbol only."
+    user: "What is the chemical symbol for gold?"
+    gold_contains: ["Au"]
+
+  - id: fact-003
+    category: factual
+    system: "Answer with just a number."
+    user: "How many continents are there?"
+    gold_contains: ["7"]
+
+  - id: fact-004
+    category: factual
+    system: "Answer concisely."
+    user: "Who wrote the play Hamlet?"
+    gold_contains: ["Shakespeare"]
+
+  - id: fact-005
+    category: factual
+    system: "Answer with the year only."
+    user: "In what year did the first human land on the Moon?"
+    gold_contains: ["1969"]
+
+  - id: fact-006
+    category: factual
+    system: "Answer concisely."
+    user: "What is the speed of light in a vacuum, in meters per second (approximate)?"
+    gold_contains: ["299"]
+
+  - id: fact-007
+    category: factual
+    system: "Answer concisely."
+    user: "Which planet is known as the Red Planet?"
+    gold_contains: ["Mars"]
+
+  - id: fact-008
+    category: factual
+    system: "Answer with the language only."
+    user: "What is the most widely spoken native language in the world?"
+    gold_contains: ["Mandarin"]
+
+  - id: fact-009
+    category: factual
+    system: "You are a math assistant. Show only the final answer."
+    user: "What is 17 multiplied by 23?"
+    gold_contains: ["391"]
+
+  - id: fact-010
+    category: factual
+    system: "You are a math assistant. Show only the final answer."
+    user: "What is the square root of 144?"
+    gold_contains: ["12"]
+
+  - id: fact-011
+    category: factual
+    system: "Answer concisely."
+    user: "What is the largest ocean on Earth?"
+    gold_contains: ["Pacific"]
+
+  - id: fact-012
+    category: factual
+    system: "Answer with the protocol name only."
+    user: "What does HTTP stand for?"
+    gold_contains: ["Hypertext"]
+
+  - id: fact-013
+    category: factual
+    system: "Answer with the inventor's name only."
+    user: "Who is credited with inventing the World Wide Web?"
+    gold_contains: ["Berners-Lee"]
+
+  - id: fact-014
+    category: factual
+    system: "Answer concisely."
+    user: "What data structure operates on a Last-In-First-Out (LIFO) basis?"
+    gold_contains: ["stack"]
+
+  - id: fact-015
+    category: factual
+    system: "Answer with just the term."
+    user: "In databases, what does ACID stand for? Just list the four words."
+    gold_contains: ["atomicity", "consistency", "isolation", "durability"]
+
+  # ---------------- rag ----------------
+
+  - id: rag-001
+    category: rag
+    system: "Answer using ONLY the context. If not found, say 'not in document'."
+    user: |
+      CONTEXT:
+      Acme Corp reported Q3 2024 revenue of $4.2M, up 18% year-over-year. Operating margin was 22%, and headcount grew to 134 employees.
+      QUESTION: What was Acme's Q3 2024 revenue?
+    gold_contains: ["4.2"]
+
+  - id: rag-002
+    category: rag
+    system: "Answer using ONLY the context."
+    user: |
+      CONTEXT:
+      Acme Corp reported Q3 2024 revenue of $4.2M, up 18% year-over-year. Operating margin was 22%, and headcount grew to 134 employees.
+      QUESTION: What was the year-over-year revenue growth?
+    gold_contains: ["18"]
+
+  - id: rag-003
+    category: rag
+    system: "Answer using ONLY the context."
+    user: |
+      CONTEXT:
+      Acme Corp reported Q3 2024 revenue of $4.2M, up 18% year-over-year. Operating margin was 22%, and headcount grew to 134 employees.
+      QUESTION: How many employees did Acme have at the end of Q3 2024?
+    gold_contains: ["134"]
+
+  - id: rag-004
+    category: rag
+    system: "Answer using ONLY the context."
+    user: |
+      CONTEXT:
+      Patient John Doe, DOB 1985-04-12, was admitted on 2024-11-03 with a primary diagnosis of acute appendicitis. Surgery was performed on 2024-11-04 by Dr. K. Patel. Patient was discharged on 2024-11-07.
+      QUESTION: On what date was the surgery performed?
+    gold_contains: ["2024-11-04"]
+
+  - id: rag-005
+    category: rag
+    system: "Answer using ONLY the context."
+    user: |
+      CONTEXT:
+      Patient John Doe, DOB 1985-04-12, was admitted on 2024-11-03 with a primary diagnosis of acute appendicitis. Surgery was performed on 2024-11-04 by Dr. K. Patel. Patient was discharged on 2024-11-07.
+      QUESTION: Who performed the surgery?
+    gold_contains: ["Patel"]
+
+  - id: rag-006
+    category: rag
+    system: "Answer using ONLY the context. If not found, say 'not in document'."
+    user: |
+      CONTEXT:
+      Patient John Doe, DOB 1985-04-12, was admitted on 2024-11-03 with a primary diagnosis of acute appendicitis. Surgery was performed on 2024-11-04 by Dr. K. Patel. Patient was discharged on 2024-11-07.
+      QUESTION: What was the patient's blood type?
+    gold_contains: ["not in document"]
+
+  - id: rag-007
+    category: rag
+    system: "Answer using ONLY the context."
+    user: |
+      CONTEXT:
+      The Apollo 11 mission launched on July 16, 1969, with astronauts Armstrong, Aldrin, and Collins. Armstrong became the first human to walk on the Moon on July 20, 1969. The total mission duration was 8 days, 3 hours, 18 minutes.
+      QUESTION: Who walked on the Moon first?
+    gold_contains: ["Armstrong"]
+
+  - id: rag-008
+    category: rag
+    system: "Answer using ONLY the context."
+    user: |
+      CONTEXT:
+      The Apollo 11 mission launched on July 16, 1969, with astronauts Armstrong, Aldrin, and Collins. Armstrong became the first human to walk on the Moon on July 20, 1969. The total mission duration was 8 days, 3 hours, 18 minutes.
+      QUESTION: How long did the Apollo 11 mission last?
+    gold_contains: ["8 days"]
+
+  - id: rag-009
+    category: rag
+    system: "Answer using ONLY the context."
+    user: |
+      CONTEXT:
+      The new microservice handles up to 12,000 requests per second on a single c6i.2xlarge instance. p99 latency is 87 ms. The service uses Redis for caching and PostgreSQL 15 for persistence.
+      QUESTION: What is the p99 latency?
+    gold_contains: ["87"]
+
+  - id: rag-010
+    category: rag
+    system: "Answer using ONLY the context."
+    user: |
+      CONTEXT:
+      The new microservice handles up to 12,000 requests per second on a single c6i.2xlarge instance. p99 latency is 87 ms. The service uses Redis for caching and PostgreSQL 15 for persistence.
+      QUESTION: What database does the service use for persistence?
+    gold_contains: ["PostgreSQL"]
+
+  - id: rag-011
+    category: rag
+    system: "Answer using ONLY the context."
+    user: |
+      CONTEXT:
+      Order #ORD-998877 placed by customer cust_4421 on 2024-12-15. Items: 2x SKU-A1 ($25 each), 1x SKU-B2 ($60). Shipping: $8. Total: $118.
+      QUESTION: What was the total amount of order ORD-998877?
+    gold_contains: ["118"]
+
+  - id: rag-012
+    category: rag
+    system: "Answer using ONLY the context."
+    user: |
+      CONTEXT:
+      Order #ORD-998877 placed by customer cust_4421 on 2024-12-15. Items: 2x SKU-A1 ($25 each), 1x SKU-B2 ($60). Shipping: $8. Total: $118.
+      QUESTION: How many units of SKU-A1 were ordered?
+    gold_contains: ["2"]
+
+  - id: rag-013
+    category: rag
+    system: "Answer using ONLY the context. If not found, say 'not in document'."
+    user: |
+      CONTEXT:
+      Order #ORD-998877 placed by customer cust_4421 on 2024-12-15. Items: 2x SKU-A1 ($25 each), 1x SKU-B2 ($60). Shipping: $8. Total: $118.
+      QUESTION: When was the order delivered?
+    gold_contains: ["not in document"]
+
+  - id: rag-014
+    category: rag
+    system: "Answer using ONLY the context."
+    user: |
+      CONTEXT:
+      The terms-of-service grant a 30-day refund window from purchase date. Refunds are issued in the original payment method within 7-10 business days of approval.
+      QUESTION: What is the refund window in days?
+    gold_contains: ["30"]
+
+  - id: rag-015
+    category: rag
+    system: "Answer using ONLY the context."
+    user: |
+      CONTEXT:
+      Project Phoenix targets Q2 2025 GA. Engineering lead is M. Tanaka. The project depends on the auth-v2 migration completing by 2025-03-31.
+      QUESTION: Who is the engineering lead for Project Phoenix?
+    gold_contains: ["Tanaka"]
+
+  # ---------------- json (structured output) ----------------
+
+  - id: json-001
+    category: json
+    system: |
+      Extract an invoice. Return ONLY valid JSON with the keys: invoice_id (string),
+      total (number), due_date (string YYYY-MM-DD). No prose, no markdown.
+    user: "Invoice INV-2024-001 totaling $1,250 is due on 2024-12-31."
+    required_keys: ["invoice_id", "total", "due_date"]
+
+  - id: json-002
+    category: json
+    system: |
+      Extract a person record. Return ONLY valid JSON with the keys: name (string),
+      age (number), email (string). No prose, no markdown.
+    user: "Jane Doe is 34 years old. Reach her at jane.doe@example.com."
+    required_keys: ["name", "age", "email"]
+
+  - id: json-003
+    category: json
+    system: |
+      Extract an order summary. Return ONLY valid JSON with the keys: order_id (string),
+      customer_id (string), total_amount (number), item_count (number). No prose.
+    user: "Order #ORD-998877 from cust_4421: 3 items totaling $118."
+    required_keys: ["order_id", "customer_id", "total_amount", "item_count"]
+
+  - id: json-004
+    category: json
+    system: |
+      Classify the support ticket. Return ONLY valid JSON with the keys: category
+      (one of: billing, technical, account, other), priority (one of: low, medium, high,
+      urgent), summary (string, <=120 chars). No prose.
+    user: "URGENT: My credit card was charged twice for the same order. I need this refunded today."
+    required_keys: ["category", "priority", "summary"]
+
+  - id: json-005
+    category: json
+    system: |
+      Extract event details. Return ONLY valid JSON with the keys: title (string),
+      start_time (string ISO 8601), location (string), attendees (array of strings).
+      No prose.
+    user: "Engineering sync on 2025-01-15 at 10:00am PT in Room 4B. Attendees: Alice, Bob, Carol."
+    required_keys: ["title", "start_time", "location", "attendees"]
+
+  - id: json-006
+    category: json
+    system: |
+      Parse the address. Return ONLY valid JSON with the keys: street, city, state,
+      postal_code, country. No prose.
+    user: "Ship to: 1600 Amphitheatre Parkway, Mountain View, CA 94043, USA."
+    required_keys: ["street", "city", "state", "postal_code", "country"]
+
+  - id: json-007
+    category: json
+    system: |
+      Sentiment analysis. Return ONLY valid JSON with the keys: sentiment (one of
+      positive, negative, neutral), confidence (number 0-1), keywords (array of strings).
+      No prose.
+    user: "I absolutely loved the new dashboard — fast, clean, and the export feature saves me hours."
+    required_keys: ["sentiment", "confidence", "keywords"]
+
+  - id: json-008
+    category: json
+    system: |
+      Extract product details. Return ONLY valid JSON with the keys: sku (string),
+      name (string), price (number), in_stock (boolean). No prose.
+    user: "SKU-A1 'Widget Pro' is priced at $25 and currently available."
+    required_keys: ["sku", "name", "price", "in_stock"]
+
+  - id: json-009
+    category: json
+    system: |
+      Extract flight details. Return ONLY valid JSON with the keys: flight_number,
+      origin, destination, departure (ISO 8601). No prose.
+    user: "Flight UA 217 departs San Francisco for Tokyo on 2025-02-10 at 11:35."
+    required_keys: ["flight_number", "origin", "destination", "departure"]
+
+  - id: json-010
+    category: json
+    system: |
+      Extract a bug report. Return ONLY valid JSON with the keys: severity (one of
+      blocker, high, medium, low), component (string), description (string). No prose.
+    user: "Critical: login page returns 500 for all users after the v2.3.1 deploy. Component: auth-service."
+    required_keys: ["severity", "component", "description"]
+
+  - id: json-011
+    category: json
+    system: |
+      Extract a calendar reminder. Return ONLY valid JSON with the keys: task (string),
+      due_date (string YYYY-MM-DD), priority (one of low, medium, high). No prose.
+    user: "Remind me to submit the Q4 report by 2024-12-20. This is high priority."
+    required_keys: ["task", "due_date", "priority"]
+
+  - id: json-012
+    category: json
+    system: |
+      Extract a recipe summary. Return ONLY valid JSON with the keys: title (string),
+      servings (number), prep_minutes (number), ingredients (array of strings). No prose.
+    user: "Pancakes for 4. Prep takes 10 minutes. You'll need flour, milk, eggs, sugar, and butter."
+    required_keys: ["title", "servings", "prep_minutes", "ingredients"]

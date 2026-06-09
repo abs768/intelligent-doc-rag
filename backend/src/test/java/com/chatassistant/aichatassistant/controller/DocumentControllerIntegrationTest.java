@@ -22,7 +22,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.UUID;
 
 import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -96,7 +95,8 @@ class DocumentControllerIntegrationTest {
                         .header("Authorization", "Bearer " + authToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.documentId", notNullValue()))
-                .andExpect(jsonPath("$.filename", is("test.txt")));
+                .andExpect(jsonPath("$.filename", is("test.txt")))
+                .andExpect(jsonPath("$.message", containsString("successfully")));
     }
 
     @Test
@@ -133,7 +133,7 @@ class DocumentControllerIntegrationTest {
 
     @Test
     void deleteDocument_WithoutAuth_ReturnsUnauthorized() throws Exception {
-        mockMvc.perform(delete("/api/documents/" + UUID.randomUUID()))
+        mockMvc.perform(delete("/api/documents/" + java.util.UUID.randomUUID()))
                 .andExpect(status().isForbidden());
     }
 

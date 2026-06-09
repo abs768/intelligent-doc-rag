@@ -1,15 +1,13 @@
 package com.chatassistant.aichatassistant.service;
 
 import io.qdrant.client.QdrantClient;
-import io.qdrant.client.QdrantGrpcClient;
-import io.qdrant.client.grpc.Collections;
 import io.qdrant.client.grpc.Points;
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
+import com.chatassistant.aichatassistant.dto.RetrievalResult;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -23,59 +21,20 @@ import static io.qdrant.client.VectorsFactory.vectors;
 public class QdrantService {
 
     private static final Logger logger = LoggerFactory.getLogger(QdrantService.class);
-
-    @Value("${qdrant.host}")
-    private String host;
-
-    @Value("${qdrant.port}")
-    private int port;
-
-    @Value("${qdrant.collection}")
-    private String collectionName;
-
-    private QdrantClient client;
-
-    // Keep this aligned with your embedding model
     private static final int VECTOR_SIZE = 768;
 
-    @PostConstruct
-    public void init() {
-        try {
-            logger.info("Connecting to Qdrant gRPC at {}:{}", host, port);
-            client = new QdrantClient(QdrantGrpcClient.newBuilder(host, port, false).build());
-            ensureCollection();
-            logger.info("Qdrant ready. Collection='{}'", collectionName);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to initialize Qdrant client", e);
-        }
+    private final QdrantClient client;
+    private final String collectionName;
+
+    public QdrantService(
+            QdrantClient client,
+            @Value("${qdrant.collection}") String collectionName
+    ) {
+        this.client = client;
+        this.collectionName = collectionName;
     }
 
-    @PreDestroy
-    public void shutdown() {
-        try {
-            if (client != null) client.close();
-        } catch (Exception ignored) {}
-    }
-
-    private void ensureCollection() {
-        try {
-            boolean exists = client.collectionExistsAsync(collectionName).get();
-            if (exists) return;
-
-            client.createCollectionAsync(
-                    collectionName,
-                    Collections.VectorParams.newBuilder()
-                            .setSize(VECTOR_SIZE)
-                            .setDistance(Collections.Distance.Cosine)
-                            .build()
-            ).get();
-
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to create/verify Qdrant collection: " + collectionName, e);
-        }
-    }
-
-    // ---------------- UPSERT ----------------
+    // ======================== UPSERT ========================
 
     public void upsertChunk(
             UUID userId,
@@ -86,13 +45,13 @@ public class QdrantService {
             String filename
     ) {
         if (userId == null || documentId == null) throw new IllegalArgumentException("userId/documentId required");
-        if (vector == null || vector.isEmpty()) throw new IllegalArgumentException("Vector must not be empty");
-        if (vector.size() != VECTOR_SIZE) {
-            throw new IllegalArgumentException("Vector dimension mismatch: expected " + VECTOR_SIZE + ", got " + vector.size());
+        if (vector == null || vector.size() != VECTOR_SIZE) {
+            throw new IllegalArgumentException(
+                    "Vector dimension mismatch: expected " + VECTOR_SIZE + ", got " + (vector == null ? 0 : vector.size()));
         }
 
         try {
-            // Stable, collision-proof within a document
+            // Deterministic point ID: hash of (documentId:chunkIndex)
             String idString = documentId + ":" + chunkIndex;
             UUID pointId = UUID.nameUUIDFromBytes(idString.getBytes(StandardCharsets.UTF_8));
 
@@ -109,12 +68,19 @@ public class QdrantService {
                     .build();
 
             client.upsertAsync(collectionName, List.of(point)).get();
+
         } catch (Exception e) {
             throw new RuntimeException("Qdrant upsert failed for documentId=" + documentId, e);
         }
     }
 
-    // ---------------- SEARCH ----------------
+    // ======================== SEARCH ========================
+    //
+    // MULTI-TENANCY CONTRACT:
+    //   Every search is scoped to a single userId (MUST condition).
+    //   Optional documentIds further narrow results WITHIN that user's data.
+    //   A user can NEVER see another user's chunks — the userId filter is non-negotiable.
+    //
 
     public List<String> search(
             UUID userId,
@@ -125,19 +91,23 @@ public class QdrantService {
         if (userId == null) return List.of();
         if (queryVector == null || queryVector.isEmpty()) return List.of();
         if (queryVector.size() != VECTOR_SIZE) {
-            throw new IllegalArgumentException("Query vector dimension mismatch: expected " + VECTOR_SIZE + ", got " + queryVector.size());
+            throw new IllegalArgumentException(
+                    "Query vector dimension mismatch: expected " + VECTOR_SIZE + ", got " + queryVector.size());
         }
         if (limit <= 0) return List.of();
 
         try {
-            Points.SearchPoints.Builder builder = Points.SearchPoints.newBuilder()
+            Points.Filter filter = buildSearchFilter(userId, documentIds);
+
+            Points.SearchPoints request = Points.SearchPoints.newBuilder()
                     .setCollectionName(collectionName)
                     .addAllVector(queryVector)
                     .setLimit(limit)
                     .setWithPayload(Points.WithPayloadSelector.newBuilder().setEnable(true).build())
-                    .setFilter(buildUserScopedFilter(userId, documentIds));
+                    .setFilter(filter)
+                    .build();
 
-            List<Points.ScoredPoint> results = client.searchAsync(builder.build()).get();
+            List<Points.ScoredPoint> results = client.searchAsync(request).get();
 
             return results.stream()
                     .map(p -> p.getPayloadMap().get("content"))
@@ -151,22 +121,74 @@ public class QdrantService {
         }
     }
 
-    // ---------------- DELETE ----------------
+    /**
+     * Like search(), but also extracts the "filename" payload from each scored point.
+     * Returns a RetrievalResult containing both chunk texts and their source filenames.
+     */
+    public RetrievalResult searchWithSources(
+            UUID userId,
+            List<Float> queryVector,
+            int limit,
+            List<UUID> documentIds
+    ) {
+        if (userId == null || queryVector == null || queryVector.isEmpty() || limit <= 0) {
+            return new RetrievalResult(List.of(), List.of());
+        }
+
+        try {
+            Points.Filter filter = buildSearchFilter(userId, documentIds);
+
+            Points.SearchPoints request = Points.SearchPoints.newBuilder()
+                    .setCollectionName(collectionName)
+                    .addAllVector(queryVector)
+                    .setLimit(limit)
+                    .setWithPayload(Points.WithPayloadSelector.newBuilder().setEnable(true).build())
+                    .setFilter(filter)
+                    .build();
+
+            List<Points.ScoredPoint> results = client.searchAsync(request).get();
+
+            List<String> chunks = new ArrayList<>();
+            Set<String> filenameSet = new LinkedHashSet<>(); // preserve order, deduplicate
+
+            for (Points.ScoredPoint p : results) {
+                var payload = p.getPayloadMap();
+
+                var contentVal = payload.get("content");
+                if (contentVal != null && !contentVal.getStringValue().isBlank()) {
+                    chunks.add(contentVal.getStringValue());
+                }
+
+                var filenameVal = payload.get("filename");
+                if (filenameVal != null && !filenameVal.getStringValue().isBlank()) {
+                    filenameSet.add(filenameVal.getStringValue());
+                }
+            }
+
+            return new RetrievalResult(chunks, new ArrayList<>(filenameSet));
+
+        } catch (Exception e) {
+            throw new RuntimeException("Qdrant searchWithSources failed", e);
+        }
+    }
+
+    // ======================== DELETE ========================
+    //
+    // Uses Qdrant's filter-based deletion — no need to scroll and collect IDs.
+    // The filter guarantees userId scoping, so one tenant cannot delete another's data.
+    //
 
     public void deleteDocument(UUID userId, UUID documentId) {
         if (userId == null || documentId == null) return;
 
         try {
-            Points.Filter filter = buildUserAndDocumentFilter(userId, documentId);
-            List<Points.RetrievedPoint> points = scrollAll(filter);
+            Points.Filter filter = Points.Filter.newBuilder()
+                    .addMust(matchKeyword("userId", userId.toString()))
+                    .addMust(matchKeyword("documentId", documentId.toString()))
+                    .build();
 
-            if (points.isEmpty()) return;
-
-            List<Points.PointId> ids = points.stream()
-                    .map(Points.RetrievedPoint::getId)
-                    .collect(Collectors.toList());
-
-            client.deleteAsync(collectionName, ids).get();
+            client.deleteAsync(collectionName, filter).get();
+            logger.info("Deleted vectors for documentId={} userId={}", documentId, userId);
 
         } catch (Exception e) {
             throw new RuntimeException("Qdrant deleteDocument failed for documentId=" + documentId, e);
@@ -177,62 +199,53 @@ public class QdrantService {
         if (userId == null) return;
 
         try {
-            Points.Filter filter = buildUserOnlyFilter(userId);
-            List<Points.RetrievedPoint> points = scrollAll(filter);
-            if (points.isEmpty()) return;
+            Points.Filter filter = Points.Filter.newBuilder()
+                    .addMust(matchKeyword("userId", userId.toString()))
+                    .build();
 
-            List<Points.PointId> ids = points.stream()
-                    .map(Points.RetrievedPoint::getId)
-                    .collect(Collectors.toList());
+            client.deleteAsync(collectionName, filter).get();
+            logger.info("Deleted all vectors for userId={}", userId);
 
-            client.deleteAsync(collectionName, ids).get();
         } catch (Exception e) {
             throw new RuntimeException("Qdrant deleteAllForUser failed for userId=" + userId, e);
         }
     }
 
-    // ---------------- FILTERS ----------------
+    // ======================== FILTER BUILDING ========================
+    //
+    // KEY DESIGN DECISION:
+    //   We use TWO must conditions — never should.
+    //   must[0] = userId  (tenant isolation — always present)
+    //   must[1] = documentId IN [...]  (optional document scoping via matchAny)
+    //
+    //   This makes the filter logic unambiguous:
+    //     "Give me chunks WHERE userId == X AND documentId IN (a, b, c)"
+    //
 
-    private Points.Filter buildUserScopedFilter(UUID userId, List<UUID> documentIds) {
+    private Points.Filter buildSearchFilter(UUID userId, List<UUID> documentIds) {
         Points.Filter.Builder filter = Points.Filter.newBuilder();
-        filter.addMust(userIdCondition(userId));
 
+        // MUST #1: Tenant isolation — always enforced
+        filter.addMust(matchKeyword("userId", userId.toString()));
+
+        // MUST #2: Optional document scoping — narrow within the tenant's data
         if (documentIds != null && !documentIds.isEmpty()) {
-            // OR over doc ids, AND with user id
-            for (UUID docId : documentIds) {
-                filter.addShould(documentIdCondition(docId));
-            }
+            List<String> docIdStrings = documentIds.stream()
+                    .map(UUID::toString)
+                    .toList();
+
+            filter.addMust(matchAnyKeyword("documentId", docIdStrings));
         }
 
         return filter.build();
     }
 
-    private Points.Filter buildUserAndDocumentFilter(UUID userId, UUID documentId) {
-        return Points.Filter.newBuilder()
-                .addMust(userIdCondition(userId))
-                .addMust(documentIdCondition(documentId))
-                .build();
-    }
-
-    private Points.Filter buildUserOnlyFilter(UUID userId) {
-        return Points.Filter.newBuilder()
-                .addMust(userIdCondition(userId))
-                .build();
-    }
-
-    private Points.Condition userIdCondition(UUID userId) {
-        return keywordCondition("userId", userId.toString());
-    }
-
-    private Points.Condition documentIdCondition(UUID documentId) {
-        return keywordCondition("documentId", documentId.toString());
-    }
-
-    private Points.Condition keywordCondition(String key, String keyword) {
+    // Match a single keyword value: field == value
+    private Points.Condition matchKeyword(String field, String keyword) {
         return Points.Condition.newBuilder()
                 .setField(
                         Points.FieldCondition.newBuilder()
-                                .setKey(key)
+                                .setKey(field)
                                 .setMatch(
                                         Points.Match.newBuilder()
                                                 .setKeyword(keyword)
@@ -243,26 +256,46 @@ public class QdrantService {
                 .build();
     }
 
-    // ---------------- SCROLL ----------------
+    // Match any of multiple keyword values: field IN [value1, value2, ...]
+    private Points.Condition matchAnyKeyword(String field, List<String> keywords) {
+        return Points.Condition.newBuilder()
+                .setField(
+                        Points.FieldCondition.newBuilder()
+                                .setKey(field)
+                                .setMatch(
+                                        Points.Match.newBuilder()
+                                                .setKeywords(
+                                                        Points.RepeatedStrings.newBuilder()
+                                                                .addAllStrings(keywords)
+                                                                .build()
+                                                )
+                                                .build()
+                                )
+                                .build()
+                )
+                .build();
+    }
 
-    private List<Points.RetrievedPoint> scrollAll(Points.Filter filter) throws Exception {
-        List<Points.RetrievedPoint> all = new ArrayList<>();
+    // ======================== SCROLL ========================
+
+    private List<Points.PointId> scrollAllIds(Points.Filter filter) throws Exception {
+        List<Points.PointId> allIds = new ArrayList<>();
+
         Points.ScrollPoints.Builder req = Points.ScrollPoints.newBuilder()
                 .setCollectionName(collectionName)
                 .setLimit(256)
-                .setWithPayload(Points.WithPayloadSelector.newBuilder().setEnable(true).build());
-
-        if (filter != null) req.setFilter(filter);
+                .setFilter(filter)
+                .setWithPayload(Points.WithPayloadSelector.newBuilder().setEnable(false).build());
 
         Points.ScrollResponse resp = client.scrollAsync(req.build()).get();
-        all.addAll(resp.getResultList());
+        resp.getResultList().forEach(p -> allIds.add(p.getId()));
 
         while (resp.getNextPageOffset() != null) {
             req.setOffset(resp.getNextPageOffset());
             resp = client.scrollAsync(req.build()).get();
-            all.addAll(resp.getResultList());
+            resp.getResultList().forEach(p -> allIds.add(p.getId()));
         }
 
-        return all;
+        return allIds;
     }
 }

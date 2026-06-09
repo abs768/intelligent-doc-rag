@@ -31,7 +31,7 @@ public class Document {
     private Instant createdAt;
 
     public enum Status {
-        PENDING, INGESTED, FAILED
+        PENDING, PROCESSING, INGESTED, FAILED
     }
 
     protected Document() {}

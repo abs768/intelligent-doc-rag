@@ -23,3 +23,10 @@ Thumbs.db
 
 # Docker
 .env
+
+# Demo media — too large for git
+Demo.mov
+
+# Benchmark timestamped history (canonical report lives in docs/benchmark.md)
+backend/bench-reports/
+bench-reports/
