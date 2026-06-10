@@ -73,8 +73,8 @@ failed → the system returns a fixed refusal text instead of an answer. See
 and the 5 unit tests in
 [ChatServiceGroundedTest.java](backend/src/test/java/com/chatassistant/aichatassistant/service/ChatServiceGroundedTest.java).
 
-**Tests:** 36 total. 32 pass with no infrastructure; the remaining 4
-(in `MultiTenantIsolationDemoTest` and `GroundedRagIntegrationTest`)
+**Tests:** 37 total. 32 pass with no infrastructure; the remaining 5
+(2 in `MultiTenantIsolationDemoTest`, 3 in `GroundedRagIntegrationTest`)
 require Docker to be running so Testcontainers can spin up Postgres and
 Qdrant. Headline coverage numbers have been removed from this README
 until they can be regenerated and pinned to an artifact the way the
