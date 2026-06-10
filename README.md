@@ -40,12 +40,23 @@ in the report. See **[docs/benchmark.md](docs/benchmark.md)** for full
 methodology (mean ± stddev, min/max, JSON-only quality scoring) and the
 `Reproducing` block so the numbers can be regenerated locally.
 
-Honest summary: `llama3.2:3b` is the throughput/quality sweet spot
-(100% JSON-extraction pass rate at ~45 tok/s); `tinyllama` fails ~42% of
-structured-output prompts; `llama3:8b` adds latency without measurable
-JSON gains. Factual and RAG categories are reported as latency/throughput
-only — substring-matching small models against a reference answer is too
-loose to claim correctness.
+Honest summary (latest run):
+
+| Model | Tokens/s (mean ± sd) | JSON-extraction pass rate |
+|---|---:|---:|
+| `tinyllama:latest` (1.1B) | 115 ± 11 | 21/36 = **58%** |
+| `llama3.2:1b` *(shipped)* | 71 ± 17 | 36/36 = **100%** |
+| `llama3.2:3b` | 32 ± 11 | 36/36 = **100%** |
+| `llama3:latest` (8B) | 17 ± 8 | 36/36 = **100%** |
+
+The model the project actually ships — `llama3.2:1b` — is the sweet spot:
+100% JSON pass rate at ~71 tok/s. `tinyllama` is fast but fails ~42% of
+structured-output prompts (typos field names, returns strings instead of
+numbers). The larger 3B and 8B models match `llama3.2:1b`'s JSON pass
+rate but pay 2–4× in throughput for no measurable quality gain on this
+suite. Factual and RAG categories are reported as latency/throughput
+only — substring matching against a reference answer is too loose to
+claim correctness.
 
 **Multi-tenant vector isolation:** proven by an integration test against a
 real Postgres + real Qdrant via Testcontainers — see
