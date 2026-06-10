@@ -69,9 +69,9 @@ class ChatServiceGroundedTest {
     void grounded_returnsCitationsPointingAtRealRetrievedChunks() {
         // Two chunks retrieved from documentService.
         RetrievedChunk c1 = new RetrievedChunk(docId, "report.pdf", 4,
-                "Q3 2024 revenue was $4.2M, up 18% YoY.", null, 0.93f);
+                "Q3 2024 revenue was $4.2M, up 18% YoY.", 0.93f);
         RetrievedChunk c2 = new RetrievedChunk(docId, "report.pdf", 5,
-                "Operating margin was 22%; headcount grew to 134.", null, 0.88f);
+                "Operating margin was 22%; headcount grew to 134.", 0.88f);
         when(documentService.findRelevantChunksForCitations(eq(userId), anyString(), anyInt(), any()))
                 .thenReturn(List.of(c1, c2));
 
@@ -98,7 +98,7 @@ class ChatServiceGroundedTest {
     @Test
     void grounded_outOfRangeCitationIndicesAreFilteredOut() {
         RetrievedChunk only = new RetrievedChunk(docId, "doc.pdf", 0,
-                "Some content", null, 0.9f);
+                "Some content", 0.9f);
         when(documentService.findRelevantChunksForCitations(eq(userId), anyString(), anyInt(), any()))
                 .thenReturn(List.of(only));
 

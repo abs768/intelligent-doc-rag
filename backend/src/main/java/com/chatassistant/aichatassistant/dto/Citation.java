@@ -5,16 +5,18 @@ import java.util.UUID;
 /**
  * Public-facing citation attached to a grounded answer.
  *
- * Every field except {@code page} is sourced directly from the Qdrant chunk payload —
- * a citation can only point at a chunk that was actually retrieved for this query,
- * which is what makes the answer verifiable. The frontend uses {@code snippet} for
- * inline previews and {@code documentId} + {@code chunkIndex} to deep-link.
+ * Every field is sourced directly from the Qdrant chunk payload — a citation can
+ * only point at a chunk that was actually retrieved for this query, which is what
+ * makes the answer verifiable. The frontend uses {@code snippet} for inline
+ * previews and {@code documentId} + {@code chunkIndex} to deep-link.
+ *
+ * Page numbers will be added when the PDF extractor learns to track page
+ * boundaries (see note on RetrievedChunk).
  */
 public record Citation(
         UUID documentId,
         String filename,
         int chunkIndex,
-        Integer page,
         String snippet
 ) {
     private static final int SNIPPET_MAX = 220;
@@ -24,6 +26,6 @@ public record Citation(
         String snippet = content.length() > SNIPPET_MAX
                 ? content.substring(0, SNIPPET_MAX) + "…"
                 : content;
-        return new Citation(c.documentId(), c.filename(), c.chunkIndex(), c.page(), snippet);
+        return new Citation(c.documentId(), c.filename(), c.chunkIndex(), snippet);
     }
 }

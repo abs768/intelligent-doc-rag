@@ -222,7 +222,6 @@ public class QdrantService {
                         filename,
                         chunkIndex,
                         content,
-                        null,            // page not currently captured
                         p.getScore()
                 ));
             }
