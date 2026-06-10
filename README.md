@@ -1,52 +1,73 @@
-# DocGPT - Production RAG System for Document Intelligence
+# DocGPT — Self-hosted RAG over your documents
 
-> **Enterprise-grade Retrieval-Augmented Generation (RAG) pipeline** built from first principles. Demonstrates distributed systems design, vector search optimization, and production ML deployment at scale.
+A self-hosted Retrieval-Augmented Generation system. Upload PDFs/text, ask
+questions, get answers grounded in the document contents — backed by local
+models via Ollama, vector search via Qdrant, and a Spring Boot + React stack.
 
 <div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Test Coverage](https://img.shields.io/badge/Coverage-70%25-brightgreen)](https://github.com/abs768/docgpt)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Abhavanishankar-blue)](https://www.linkedin.com/in/abs768/)
-[![System Design](https://img.shields.io/badge/System_Design-Documented-orange)](https://github.com/abs768/docgpt#-system-design-deep-dive)
 
 **Built by:** [Abhavanishankar](https://github.com/abs768) | **Contact:** abhavanishankar2002@gmail.com
 
 </div>
 
+This is a portfolio / learning project, not a production system. The pieces
+that work end-to-end (auth, multi-tenant vector isolation, structured-output
+grounded answers, model benchmarking) are listed below with links to the
+code that proves each claim.
+
 ---
 
-## 🎥 Live System Demo
+## 🎥 Demo
 
 <div align="center">
   <a href="https://drive.google.com/file/d/1l6if_ohm6c3xz5WzosuzGuvcK7F3ad_u/view?usp=sharing">
-    <img src="https://raw.githubusercontent.com/abs768/docgpt/main/assets/demo-screenshot.png](https://raw.githubusercontent.com/abs768/intelligent-doc-rag/main/assets/demo-screenshot.png" alt="DocGPT Production System Demo" width="850"/>
+    <img src="assets/demo-screenshot.png" alt="DocGPT demo" width="850"/>
   </a>
-  
-  **📹 [Watch Full System Walkthrough](https://drive.google.com/file/d/1l6if_ohm6c3xz5WzosuzGuvcK7F3ad_u/view?usp=sharing) (2 minutes)**
-  
-  *Click image above or link to see: Architecture overview • Document processing pipeline • Real-time semantic search • LLM integration • Error handling*
+
+  **📹 [Watch the walkthrough](https://drive.google.com/file/d/1l6if_ohm6c3xz5WzosuzGuvcK7F3ad_u/view?usp=sharing)** — upload, retrieval, chat, error handling.
 </div>
 
 ---
 
-## 🎯 Executive Summary
+## 📊 What's actually measured
 
-**Problem:** Traditional document systems use keyword matching (precision: ~40%), missing semantic meaning. LLMs hallucinate when queried without context (accuracy: ~60%). Enterprise needs: accurate, source-grounded document Q&A at scale.
+**Local-model benchmark:** `tinyllama:latest`, `llama3.2:1b`, `llama3.2:3b`,
+`llama3:latest` — 42 prompts × 3 iterations each, on the machine documented
+in the report. See **[docs/benchmark.md](docs/benchmark.md)** for full
+methodology (mean ± stddev, min/max, JSON-only quality scoring) and the
+`Reproducing` block so the numbers can be regenerated locally.
 
-**Solution:** Production RAG pipeline combining vector semantic search (recall: ~85%) with constrained LLM generation (accuracy: ~92%). Processes 10-page PDFs in 5-15s, handles concurrent users, maintains 70% test coverage.
+Honest summary: `llama3.2:3b` is the throughput/quality sweet spot
+(100% JSON-extraction pass rate at ~45 tok/s); `tinyllama` fails ~42% of
+structured-output prompts; `llama3:8b` adds latency without measurable
+JSON gains. Factual and RAG categories are reported as latency/throughput
+only — substring-matching small models against a reference answer is too
+loose to claim correctness.
 
-**Technical Highlights:**
-- Microservices architecture with Docker orchestration
-- Vector database with HNSW indexing for sub-100ms retrieval
-- Comprehensive integration testing with Testcontainers
-- JWT-based authentication with user data isolation
-- Optimized chunking strategy validated through A/B testing
+**Multi-tenant vector isolation:** proven by an integration test against a
+real Postgres + real Qdrant via Testcontainers — see
+[MultiTenantIsolationDemoTest.java](backend/src/test/java/com/chatassistant/aichatassistant/MultiTenantIsolationDemoTest.java).
+Same pattern proves the grounded-RAG contract in
+[GroundedRagIntegrationTest.java](backend/src/test/java/com/chatassistant/aichatassistant/GroundedRagIntegrationTest.java).
 
-**Impact Metrics:**
-- Query latency: 3-8s end-to-end (85th percentile)
-- Vector search: <100ms for top-K retrieval
-- Memory efficiency: 6GB total (production-viable on $7/month VPS)
-- Test coverage: 70% (integration + unit)
+**Grounded RAG (no hallucinated sources):** the `/api/chat/grounded`
+endpoint forces the LLM through a JSON schema + Bean Validation + retry
+loop, then maps citation indices back to the *actual* retrieved chunks. If
+no chunks were retrieved, no citations survived, or the structured call
+failed → the system returns a fixed refusal text instead of an answer. See
+[ChatService.chatGrounded](backend/src/main/java/com/chatassistant/aichatassistant/service/ChatService.java)
+and the 5 unit tests in
+[ChatServiceGroundedTest.java](backend/src/test/java/com/chatassistant/aichatassistant/service/ChatServiceGroundedTest.java).
+
+**Tests:** 36 total. 32 pass with no infrastructure; the remaining 4
+(in `MultiTenantIsolationDemoTest` and `GroundedRagIntegrationTest`)
+require Docker to be running so Testcontainers can spin up Postgres and
+Qdrant. Headline coverage numbers have been removed from this README
+until they can be regenerated and pinned to an artifact the way the
+benchmark report is.
 
 ---
 
