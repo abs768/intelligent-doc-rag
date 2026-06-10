@@ -43,7 +43,7 @@ public class ChatService {
      * Canonical refusal text used by the grounded path. Returned whenever no chunks were
      * retrieved or the model failed to produce a properly-cited answer.
      */
-    static final String GROUNDED_REFUSAL =
+    public static final String GROUNDED_REFUSAL =
             "I don't have that information in the provided documents.";
 
     private static final String GROUNDED_SYSTEM_PROMPT = """
