@@ -1,6 +1,6 @@
 # DocGPT — Self-hosted RAG over your documents
 
-[![CI](https://github.com/abs768/docgpt/actions/workflows/ci.yml/badge.svg)](https://github.com/abs768/docgpt/actions/workflows/ci.yml)
+[![CI](https://github.com/abs768/intelligent-doc-rag/actions/workflows/ci.yml/badge.svg)](https://github.com/abs768/intelligent-doc-rag/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Abhavanishankar-blue)](https://www.linkedin.com/in/abs768/)
 
