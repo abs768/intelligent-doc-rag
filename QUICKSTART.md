@@ -32,9 +32,9 @@ This starts:
 
 ### 4. Download AI Models (REQUIRED - only once)
 
-**LLM Model (3GB):**
+**LLM Model (~1.3GB):**
 ```bash
-docker exec -it docgpt-ollama ollama pull llama2
+docker exec -it docgpt-ollama ollama pull llama3.2:1b
 ```
 
 **Embedding Model (274MB):**
