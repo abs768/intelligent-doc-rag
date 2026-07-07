@@ -146,8 +146,9 @@ a CI artifact on every run).
 ### Benchmark
 
 Requires a local Ollama with the models pulled — the exact command is in the
-`Reproducing` block of [docs/benchmark.md](docs/benchmark.md). Reports are
-written to [bench-reports/](bench-reports/).
+`Reproducing` block of [docs/benchmark.md](docs/benchmark.md). Each run
+writes a timestamped report to `bench-reports/` (local only, gitignored);
+the canonical results live in docs/benchmark.md.
 
 ## Repository layout
 
@@ -156,7 +157,6 @@ backend/    Spring Boot API — controller / service / repository / entity / dto
             bench/ (benchmark harness), src/test (37 tests incl. Testcontainers)
 frontend/   React 18 SPA (Create React App)
 docs/       benchmark.md (methodology + results), architecture.md (design notes)
-bench-reports/  Raw generated benchmark reports
 ```
 
 ## Design notes, trade-offs, and known limitations
