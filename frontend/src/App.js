@@ -33,6 +33,17 @@ export default function App() {
 
   // ======================== INIT ========================
 
+  const loadDocuments = useCallback(async () => {
+    try {
+      const docs = await api.listDocuments();
+      setDocuments(docs);
+      return docs;
+    } catch {
+      console.error('Failed to load documents');
+      return [];
+    }
+  }, []);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     const user = localStorage.getItem('user');
@@ -46,7 +57,7 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', savedTheme);
 
     return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
-  }, []);
+  }, [loadDocuments]);
 
   // ======================== AUTH HANDLERS ========================
 
@@ -71,17 +82,6 @@ export default function App() {
   };
 
   // ======================== DOCUMENT HANDLERS ========================
-
-  const loadDocuments = useCallback(async () => {
-    try {
-      const docs = await api.listDocuments();
-      setDocuments(docs);
-      return docs;
-    } catch {
-      console.error('Failed to load documents');
-      return [];
-    }
-  }, []);
 
   // Poll for PROCESSING → INGESTED/FAILED transitions
   const startPolling = useCallback(() => {
