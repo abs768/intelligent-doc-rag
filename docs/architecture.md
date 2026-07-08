@@ -100,7 +100,10 @@ capability for a single-node deployment.
   grounded-RAG contract. Ollama is *stubbed* in these tests (deterministic
   embeddings, canned structured answers) so they are fast and deterministic
   while the stores stay real.
-- 37 tests total; 32 need no infrastructure, 5 need Docker. All run in CI.
+- **Frontend tests** (React Testing Library) for the auth flow, the chat UI
+  (citation chips, telemetry, send gating), and the API client.
+- 37 backend tests (32 need no infrastructure, 5 need Docker) + 18 frontend
+  tests. All run in CI.
 
 ## Known limitations / roadmap
 

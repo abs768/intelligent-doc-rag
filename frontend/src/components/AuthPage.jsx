@@ -66,8 +66,9 @@ export default function AuthPage({ onLogin }) {
         {authView === 'login' ? (
           <form onSubmit={handleLogin} className="auth-form">
             <div className="form-group">
-              <label>Email</label>
+              <label htmlFor="login-email">Email</label>
               <input
+                id="login-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -76,8 +77,9 @@ export default function AuthPage({ onLogin }) {
               />
             </div>
             <div className="form-group">
-              <label>Password</label>
+              <label htmlFor="login-password">Password</label>
               <input
+                id="login-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -91,8 +93,9 @@ export default function AuthPage({ onLogin }) {
         ) : (
           <form onSubmit={handleRegister} className="auth-form">
             <div className="form-group">
-              <label>Name</label>
+              <label htmlFor="register-name">Name</label>
               <input
+                id="register-name"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -101,8 +104,9 @@ export default function AuthPage({ onLogin }) {
               />
             </div>
             <div className="form-group">
-              <label>Email</label>
+              <label htmlFor="register-email">Email</label>
               <input
+                id="register-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -110,8 +114,9 @@ export default function AuthPage({ onLogin }) {
               />
             </div>
             <div className="form-group">
-              <label>Password</label>
+              <label htmlFor="register-password">Password</label>
               <input
+                id="register-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

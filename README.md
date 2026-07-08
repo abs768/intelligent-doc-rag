@@ -19,11 +19,9 @@ in this README links to the code, test, or report that backs it.
 ## Demo
 
 <div align="center">
-  <a href="https://drive.google.com/file/d/1l6if_ohm6c3xz5WzosuzGuvcK7F3ad_u/view?usp=sharing">
-    <img src="assets/demo-screenshot.png" alt="DocGPT demo" width="850"/>
-  </a>
+  <img src="assets/demo.gif" alt="DocGPT demo — upload a PDF, ask a question, get a grounded answer" width="850"/>
 
-  📹 [Watch the walkthrough](https://drive.google.com/file/d/1l6if_ohm6c3xz5WzosuzGuvcK7F3ad_u/view?usp=sharing) — upload, retrieval, chat, error handling.
+  📹 [Watch the full walkthrough](https://drive.google.com/file/d/1l6if_ohm6c3xz5WzosuzGuvcK7F3ad_u/view?usp=sharing) — upload, retrieval, chat, error handling.
 </div>
 
 ---
@@ -62,9 +60,11 @@ in this README links to the code, test, or report that backs it.
 | Invalid LLM JSON is retried, then rejected | [OllamaServiceStructuredTest](backend/src/test/java/com/chatassistant/aichatassistant/service/OllamaServiceStructuredTest.java) |
 | Model choice is measured, not guessed | [docs/benchmark.md](docs/benchmark.md) — methodology + a `Reproducing` block |
 
-**Tests: 37 total.** 32 run with no infrastructure (`mvn test` with the two
-Testcontainers classes excluded); the remaining 5 spin up real Postgres and
-Qdrant containers and need Docker running. All 37 run in
+**Tests: 37 backend + 18 frontend.** 32 backend tests run with no
+infrastructure (`mvn test` with the two Testcontainers classes excluded); the
+remaining 5 spin up real Postgres and Qdrant containers and need Docker
+running. The 18 frontend tests (React Testing Library) cover the auth flow,
+the chat UI including citation chips, and the API client. All of them run in
 [CI](.github/workflows/ci.yml) on every push.
 
 ## Benchmark summary
@@ -138,6 +138,9 @@ More detail (troubleshooting, first-use walkthrough): [QUICKSTART.md](QUICKSTART
 cd backend
 mvn test               # all 37 (needs Docker for the 5 Testcontainers tests)
 mvn test -Dtest='!GroundedRagIntegrationTest,!MultiTenantIsolationDemoTest'   # 32, no infra
+
+cd frontend
+npm test -- --watchAll=false   # 18 React Testing Library tests, no infra
 ```
 
 JaCoCo HTML report lands in `backend/target/site/jacoco/` (also published as
@@ -155,7 +158,7 @@ the canonical results live in docs/benchmark.md.
 ```
 backend/    Spring Boot API — controller / service / repository / entity / dto,
             bench/ (benchmark harness), src/test (37 tests incl. Testcontainers)
-frontend/   React 18 SPA (Create React App)
+frontend/   React 18 SPA (Create React App), 18 React Testing Library tests
 docs/       benchmark.md (methodology + results), architecture.md (design notes)
 ```
 

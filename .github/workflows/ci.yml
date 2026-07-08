@@ -35,7 +35,7 @@ jobs:
           if-no-files-found: ignore
 
   frontend:
-    name: Frontend build (React)
+    name: Frontend tests + build (React)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -49,6 +49,10 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
+
+      - name: Run tests
+        working-directory: frontend
+        run: npm test -- --watchAll=false
 
       # CI=true (set by Actions) makes CRA treat eslint warnings as errors.
       - name: Build
