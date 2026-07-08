@@ -121,5 +121,6 @@ Listed here so the README doesn't oversell:
   OpenTelemetry) yet.
 - **Frontend is Create React App** — deprecated upstream; a Vite + TypeScript
   migration is planned.
-- **Single-node by design** — no HA story; `DEPLOYMENT.md` discusses what a
-  cloud deployment would change.
+- **Single-node by design** — no HA story. A cloud deployment would need
+  managed Postgres and Qdrant plus either a GPU-backed inference host for
+  Ollama or a swap to a hosted LLM API.

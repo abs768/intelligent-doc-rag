@@ -13,9 +13,10 @@
 
 Wait for Docker to fully start (whale icon steady, not animated)
 
-### 2. Extract This Project
+### 2. Clone This Project
 ```bash
-cd docgpt-complete
+git clone https://github.com/abs768/intelligent-doc-rag.git
+cd intelligent-doc-rag
 ```
 
 ### 3. Start All Services
