@@ -75,16 +75,42 @@ JSON-extraction category (valid JSON with all required keys); factual/RAG
 categories report latency and throughput only, because substring-matching
 small models against reference answers is too loose to call "correctness".
 
-| Model | Tokens/s (mean ± sd) | JSON-extraction pass rate |
-|---|---:|---:|
-| `tinyllama:latest` (1.1B) | 115 ± 11 | 21/36 = 58% |
-| `llama3.2:1b` *(shipped)* | 71 ± 17 | 36/36 = **100%** |
-| `llama3.2:3b` | 32 ± 11 | 36/36 = 100% |
-| `llama3:latest` (8B) | 17 ± 8 | 36/36 = 100% |
+| Model | Latency ms (mean ± sd) | Latency min..max | TTFT ms (mean ± sd) † | Tokens/s (mean ± sd) | JSON pass rate |
+|---|---:|---:|---:|---:|---:|
+| `tinyllama:latest` (1.1B) | 917 ± 1497 | 89..9716 | 54 ± 33 | 115 ± 11 | 21/36 = 58% |
+| `llama3.2:1b` *(shipped)* | **726 ± 623** | 90..2403 | 95 ± 30 | 71 ± 17 | 36/36 = **100%** |
+| `llama3.2:3b` | 1371 ± 1694 | 130..10001 | 196 ± 146 | 32 ± 11 | 36/36 = 100% |
+| `llama3:latest` (8B) | 1933 ± 1567 | 163..6689 | 373 ± 382 | 17 ± 8 | 36/36 = 100% |
 
-`llama3.2:1b` is the sweet spot this app ships with: 100% JSON pass rate at
-~71 tok/s. The 3B and 8B models match its pass rate but cost 2–4× in
-throughput for no measurable gain on this suite.
+**Conditions:** run 2026-06-10 against a local Ollama instance on Mac OS X /
+aarch64, 8 logical cores, JVM 25.0.1; **N = 3 iterations per (model, prompt)**,
+126 successful runs per model. Per-category breakdowns and the full methodology
+are in [docs/benchmark.md](docs/benchmark.md).
+
+`llama3.2:1b` is the sweet spot this app ships with, and latency is the clearer
+reason why than throughput is: it has the **lowest mean latency of the four**
+while being the smallest model that reaches a 100% JSON pass rate. Note that
+`tinyllama` is the fastest model *per token* (115 tok/s) yet slower *per request*
+(917 ms vs 726 ms) — it emits more tokens, which is also why it fails JSON
+extraction on 15 of 36 prompts. Throughput alone would have picked the wrong
+model. The 3B and 8B models match the shipped model's pass rate for 1.9× and
+2.7× the latency.
+
+Two honest caveats on these numbers, both from
+[docs/benchmark.md](docs/benchmark.md):
+
+- **The standard deviations exceed or approach the means, so the distribution is
+  heavily right-skewed** — the min..max column is the more informative one. A
+  `llama3.2:3b` request ranged from 130 ms to 10 s across the suite. Treat the
+  means as a ranking signal, not as a latency SLO.
+- † **TTFT is approximated**, not measured from a streaming client: it is
+  `load_duration + prompt_eval_duration` taken from the non-streaming response,
+  which is a reasonable lower bound for time-to-first-token. A real streaming
+  measurement would be higher.
+
+Wall-clock latency is measured client-side; the remaining timings come from
+Ollama's own response payload. N = 3 is small — enough to rank four models on
+one machine, not enough for confident per-model latency claims.
 
 ## Architecture
 
