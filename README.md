@@ -21,7 +21,7 @@ in this README links to the code, test, or report that backs it.
 <div align="center">
   <img src="assets/demo.gif" alt="DocGPT demo — upload a PDF, ask a question, get a grounded answer" width="850"/>
 
-  📹 [Watch the full walkthrough](https://drive.google.com/file/d/1l6if_ohm6c3xz5WzosuzGuvcK7F3ad_u/view?usp=sharing) — upload, retrieval, chat, error handling.
+  <em>Upload a PDF, ask a question, get an answer grounded in the retrieved chunks.</em>
 </div>
 
 ---
