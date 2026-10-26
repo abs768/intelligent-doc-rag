@@ -1,5 +1,6 @@
 package com.chatassistant.aichatassistant.service;
 
+import com.chatassistant.aichatassistant.rag.RagRetriever;
 import com.chatassistant.aichatassistant.dto.ChatRequest;
 import com.chatassistant.aichatassistant.dto.ChatResponse;
 import com.chatassistant.aichatassistant.dto.Citation;
@@ -34,7 +35,7 @@ class ChatServiceGroundedTest {
     @Mock private ConversationRepository conversationRepo;
     @Mock private MessageRepository messageRepo;
     @Mock private OllamaService ollamaService;
-    @Mock private DocumentService documentService;
+    @Mock private RagRetriever retriever;
 
     @InjectMocks private ChatService chatService;
 
@@ -67,12 +68,12 @@ class ChatServiceGroundedTest {
 
     @Test
     void grounded_returnsCitationsPointingAtRealRetrievedChunks() {
-        // Two chunks retrieved from documentService.
+        // Two chunks retrieved by the RagRetriever.
         RetrievedChunk c1 = new RetrievedChunk(docId, "report.pdf", 4,
                 "Q3 2024 revenue was $4.2M, up 18% YoY.", 0.93f);
         RetrievedChunk c2 = new RetrievedChunk(docId, "report.pdf", 5,
                 "Operating margin was 22%; headcount grew to 134.", 0.88f);
-        when(documentService.findRelevantChunksForCitations(eq(userId), anyString(), anyInt(), any()))
+        when(retriever.findRelevantChunksForCitations(eq(userId), anyString(), anyInt(), any()))
                 .thenReturn(List.of(c1, c2));
 
         // Model returns a structured answer citing chunk 1 (1-based).
@@ -99,7 +100,7 @@ class ChatServiceGroundedTest {
     void grounded_outOfRangeCitationIndicesAreFilteredOut() {
         RetrievedChunk only = new RetrievedChunk(docId, "doc.pdf", 0,
                 "Some content", 0.9f);
-        when(documentService.findRelevantChunksForCitations(eq(userId), anyString(), anyInt(), any()))
+        when(retriever.findRelevantChunksForCitations(eq(userId), anyString(), anyInt(), any()))
                 .thenReturn(List.of(only));
 
         // Model invents index 7 (only 1 chunk was provided) — must be filtered.
@@ -116,7 +117,7 @@ class ChatServiceGroundedTest {
 
     @Test
     void grounded_refusesWithoutCallingLLM_whenNoChunksRetrieved() {
-        when(documentService.findRelevantChunksForCitations(eq(userId), anyString(), anyInt(), any()))
+        when(retriever.findRelevantChunksForCitations(eq(userId), anyString(), anyInt(), any()))
                 .thenReturn(List.of());
 
         ChatResponse resp = chatService.chatGrounded(userId, request("something not in any doc"));
@@ -132,7 +133,7 @@ class ChatServiceGroundedTest {
 
     @Test
     void grounded_persistsBothUserMessageAndAssistantReply() {
-        when(documentService.findRelevantChunksForCitations(eq(userId), anyString(), anyInt(), any()))
+        when(retriever.findRelevantChunksForCitations(eq(userId), anyString(), anyInt(), any()))
                 .thenReturn(List.of());
 
         chatService.chatGrounded(userId, request("anything"));
@@ -149,6 +150,6 @@ class ChatServiceGroundedTest {
     void grounded_emptyMessage_throwsIllegalArgument() {
         assertThrows(IllegalArgumentException.class, () ->
                 chatService.chatGrounded(userId, request("")));
-        verify(documentService, never()).findRelevantChunksForCitations(any(), any(), anyInt(), any());
+        verify(retriever, never()).findRelevantChunksForCitations(any(), any(), anyInt(), any());
     }
 }
