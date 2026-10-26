@@ -59,7 +59,7 @@ of passing an `EmbeddingManager` into a `RAGRetriever` in Python.
 **a. How I used AI tools**
 
 I built the first version with Claude in chat, pasting errors and files back and forth. Later
-phases used an AI coding agent in the repository, with `AGENTS.md` setting the rules. In both,
+phases used Claude Code in the repository, with `AGENTS.md` setting the rules. In both,
 I set the goal, reviewed the design before code, and verified results myself.
 
 **b. Suggestions I rejected or changed**

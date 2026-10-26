@@ -2,7 +2,7 @@
 
 How DocGPT was built with AI assistants, phase by phase. Each phase lists its commits so every
 entry can be checked against the history. Phase 1 was built with **Claude** in chat; the later
-phases used an AI coding agent working in the repository under the rules in [`AGENTS.md`](AGENTS.md).
+phases used **Claude Code** working in the repository under the rules in [`AGENTS.md`](AGENTS.md).
 
 ---
 
