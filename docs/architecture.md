@@ -82,12 +82,20 @@ and an end-to-end Testcontainers test
 
 ## Async ingestion
 
-Document upload returns `202 Accepted` after persisting metadata; extraction,
-chunking, embedding, and vector upsert run on a Spring `@Async` thread, with
-the document row transitioning `PENDING → PROCESSING → INGESTED | FAILED`.
-The frontend polls `/api/documents/list` until ingestion settles. Large files
-are uploaded in parts via `/upload-chunk` + `/upload-finalize` to stay under
-request-size limits. At this scale a thread pool is the right amount of
+Large files are uploaded in parts via `/upload-chunk` + `/upload-finalize` to
+stay under request-size limits. Finalize records the document as `PROCESSING`,
+returns `202 Accepted`, and `IngestionPipeline.ingestFileAsync` runs
+extraction, chunking, embedding and vector upsert on a Spring `@Async` thread,
+moving the row to `INGESTED` or `FAILED`. The frontend polls
+`/api/documents/list` until ingestion settles. Small files go through
+`/upload`, which indexes them before responding.
+
+An earlier version put the `@Async` method on `DocumentService` and called it
+from the same class. Spring applies `@Async` through a proxy, so that
+self-call ran synchronously and the 202 only went out after embedding
+finished. Moving the method to its own bean fixed it, and finalize is no
+longer `@Transactional`, so the `PROCESSING` row is committed before the
+background thread looks it up. At this scale a thread pool is the right amount of
 machinery — a message queue would add operational surface without adding
 capability for a single-node deployment.
 
@@ -102,7 +110,7 @@ capability for a single-node deployment.
   while the stores stay real.
 - **Frontend tests** (React Testing Library) for the auth flow, the chat UI
   (citation chips, telemetry, send gating), and the API client.
-- 37 backend tests (32 need no infrastructure, 5 need Docker) + 18 frontend
+- 51 backend tests (46 need no infrastructure, 5 need Docker) + 18 frontend
   tests. All run in CI.
 
 ## Known limitations / roadmap

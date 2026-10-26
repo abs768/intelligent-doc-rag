@@ -1,0 +1,118 @@
+%% DocGPT: current design. The rag package holds one class per RAG stage,
+%% matching the stages of a Python RAG pipeline:
+%%   load (data_loader) -> split -> embed (embedding) -> store (vectorstore)
+%%   -> retrieve (search.RAGRetriever) -> generate (rag_simple / rag_advanced)
+classDiagram
+    direction TB
+
+    namespace api {
+        class DocumentController {
+            +upload(file) 200
+            +uploadChunk(uploadId, chunk)
+            +finalizeUpload(uploadId, filename) 202
+            +list()
+            +delete(id)
+        }
+        class ChatController {
+            +chat(ChatRequest) ChatResponse
+            +chatGrounded(ChatRequest) ChatResponse
+        }
+    }
+
+    namespace rag {
+        class DocumentTextExtractor {
+            <<1 load>>
+            +extract(MultipartFile) String
+            +extract(File, filename) String
+        }
+        class TextChunker {
+            <<2 split>>
+            CHUNK_SIZE_CHARS = 1500
+            CHUNK_OVERLAP_CHARS = 200
+            +chunk(text) List~String~
+        }
+        class IngestionPipeline {
+            <<2-4 split, embed, store>>
+            +ingestText(userId, documentId, filename, content) int
+            +ingestFileAsync(userId, documentId, filename, file) @Async
+        }
+        class RagRetriever {
+            <<5 retrieve>>
+            +findRelevantChunks(userId, query, k, docIds) List~String~
+            +findRelevantChunksWithSources(...) RetrievalResult
+            +findRelevantChunksForCitations(...) List~RetrievedChunk~
+        }
+    }
+
+    namespace service {
+        class DocumentService {
+            +ingestDocument(userId, file) UUID
+            +appendChunk(uploadId, bytes)
+            +finalizeUpload(userId, uploadId, filename) UUID
+            +listDocuments(userId)
+            +deleteDocument(userId, documentId)
+        }
+        class EmbeddingService {
+            <<3 embed>>
+            nomic-embed-text, 768 dims
+            +embed(text) List~Float~
+        }
+        class QdrantService {
+            <<4 store>>
+            userId filter on every search
+            +upsertChunk(...)
+            +searchWithCitations(userId, vector, k, docIds)
+            +deleteDocument(userId, documentId)
+        }
+        class ChatService {
+            <<6 generate>>
+            +chat(userId, req) ChatResponse
+            +chatGrounded(userId, req) ChatResponse
+            -mapCitations(indices, chunks) List~Citation~
+        }
+        class OllamaService {
+            <<LLM client>>
+            llama3.2:1b
+            +chat(system, user) String
+            +chatStructured(system, user, type) T
+        }
+    }
+
+    namespace dto {
+        class RetrievedChunk {
+            <<record>>
+            documentId: UUID
+            filename: String
+            chunkIndex: int
+            content: String
+            score: float
+        }
+        class GroundedAnswer {
+            <<record>>
+            answer: String
+            citationIndices: List~Integer~
+        }
+        class Citation {
+            <<record>>
+            documentId: UUID
+            filename: String
+            chunkIndex: int
+            snippet: String
+        }
+    }
+
+    DocumentController --> DocumentService
+    ChatController --> ChatService
+    DocumentService --> DocumentTextExtractor
+    DocumentService --> IngestionPipeline
+    IngestionPipeline --> DocumentTextExtractor
+    IngestionPipeline --> TextChunker
+    IngestionPipeline --> EmbeddingService
+    IngestionPipeline --> QdrantService
+    ChatService --> RagRetriever
+    ChatService --> OllamaService
+    RagRetriever --> EmbeddingService
+    RagRetriever --> QdrantService
+    RagRetriever ..> RetrievedChunk
+    OllamaService ..> GroundedAnswer : validated JSON
+    ChatService ..> Citation : only for retrieved chunks

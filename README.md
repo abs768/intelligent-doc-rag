@@ -30,12 +30,12 @@ in this README links to the code, test, or report that backs it.
 
 - **Auth** — register/login with JWT (jjwt 0.12), BCrypt password hashing,
   stateless Spring Security filter chain.
-- **Async document ingestion** — upload returns `202 Accepted` immediately;
-  text extraction → chunking (1500 chars, 200 overlap) → embedding
-  (`nomic-embed-text`, 768-dim) → Qdrant upsert runs on a background thread
-  ([`DocumentService.processEmbeddingsAsync`](backend/src/main/java/com/chatassistant/aichatassistant/service/DocumentService.java)).
-  The UI polls document status through `PENDING → PROCESSING → INGESTED | FAILED`.
-  Large files upload in chunks (`/upload-chunk` + `/upload-finalize`).
+- **Document ingestion** — text extraction → chunking (1500 chars, 200 overlap) →
+  embedding (`nomic-embed-text`, 768-dim) → Qdrant upsert. Small files are indexed before
+  `/upload` returns. Large files upload in parts (`/upload-chunk` + `/upload-finalize`);
+  finalize returns `202 Accepted` and ingestion runs on a background thread
+  ([`IngestionPipeline.ingestFileAsync`](backend/src/main/java/com/chatassistant/aichatassistant/rag/IngestionPipeline.java)),
+  while the UI polls status through `PROCESSING → INGESTED | FAILED`.
 - **Multi-tenant vector isolation** — every Qdrant search is filtered by
   `userId` server-side, so one user can never retrieve another user's chunks,
   even with a guessed document ID.
@@ -60,7 +60,7 @@ in this README links to the code, test, or report that backs it.
 | Invalid LLM JSON is retried, then rejected | [OllamaServiceStructuredTest](backend/src/test/java/com/chatassistant/aichatassistant/service/OllamaServiceStructuredTest.java) |
 | Model choice is measured, not guessed | [docs/benchmark.md](docs/benchmark.md) — methodology + a `Reproducing` block |
 
-**Tests: 37 backend + 18 frontend.** 32 backend tests run with no
+**Tests: 51 backend + 18 frontend.** 46 backend tests run with no
 infrastructure (`mvn test` with the two Testcontainers classes excluded); the
 remaining 5 spin up real Postgres and Qdrant containers and need Docker
 running. The 18 frontend tests (React Testing Library) cover the auth flow,
@@ -112,6 +112,26 @@ Wall-clock latency is measured client-side; the remaining timings come from
 Ollama's own response payload. N = 3 is small — enough to rank four models on
 one machine, not enough for confident per-model latency claims.
 
+## RAG pipeline
+
+The backend has one class per RAG stage, in the `rag` and `service` packages. The stages
+are the same ones a Python LangChain pipeline uses, so each class names its Python
+equivalent in its Javadoc.
+
+| Stage | What happens | Class |
+|---|---|---|
+| 1. Load | PDF (PDFBox) or UTF-8 text → plain text | [`DocumentTextExtractor`](backend/src/main/java/com/chatassistant/aichatassistant/rag/DocumentTextExtractor.java) |
+| 2. Split | 1500-char chunks, 200-char overlap, word boundaries | [`TextChunker`](backend/src/main/java/com/chatassistant/aichatassistant/rag/TextChunker.java) |
+| 3. Embed | `nomic-embed-text` via Ollama, 768 dimensions | [`EmbeddingService`](backend/src/main/java/com/chatassistant/aichatassistant/service/EmbeddingService.java) |
+| 4. Store | Qdrant upsert with `userId` / `documentId` payload | [`QdrantService`](backend/src/main/java/com/chatassistant/aichatassistant/service/QdrantService.java) |
+| 2–4 | Runs split → embed → store for one document, sync or `@Async` | [`IngestionPipeline`](backend/src/main/java/com/chatassistant/aichatassistant/rag/IngestionPipeline.java) |
+| 5. Retrieve | Ownership check, embed the question, top-k search filtered by user | [`RagRetriever`](backend/src/main/java/com/chatassistant/aichatassistant/rag/RagRetriever.java) |
+| 6. Generate | Prompt with numbered chunks, validated JSON, citations or refusal | [`ChatService`](backend/src/main/java/com/chatassistant/aichatassistant/service/ChatService.java) + [`OllamaService`](backend/src/main/java/com/chatassistant/aichatassistant/service/OllamaService.java) |
+
+The full class design is in [`diagrams/uml_final.mmd`](diagrams/uml_final.mmd) (Mermaid; paste
+it into [mermaid.live](https://mermaid.live) to render). [`diagrams/uml_draft.mmd`](diagrams/uml_draft.mmd)
+is the first design, where `DocumentService` did every stage itself.
+
 ## Architecture
 
 ```
@@ -162,8 +182,8 @@ More detail (troubleshooting, first-use walkthrough): [QUICKSTART.md](QUICKSTART
 
 ```bash
 cd backend
-mvn test               # all 37 (needs Docker for the 5 Testcontainers tests)
-mvn test -Dtest='!GroundedRagIntegrationTest,!MultiTenantIsolationDemoTest'   # 32, no infra
+mvn test               # all 51 (needs Docker for the 5 Testcontainers tests)
+mvn test -Dtest='!GroundedRagIntegrationTest,!MultiTenantIsolationDemoTest'   # 46, no infra
 
 cd frontend
 npm test -- --watchAll=false   # 18 React Testing Library tests, no infra
@@ -182,10 +202,11 @@ the canonical results live in docs/benchmark.md.
 ## Repository layout
 
 ```
-backend/    Spring Boot API — controller / service / repository / entity / dto,
-            bench/ (benchmark harness), src/test (37 tests incl. Testcontainers)
+backend/    Spring Boot API — controller / service / rag (one class per RAG stage) /
+            repository / entity / dto, bench/ (benchmark harness), src/test
 frontend/   React 18 SPA (Create React App), 18 React Testing Library tests
 docs/       benchmark.md (methodology + results), architecture.md (design notes)
+diagrams/   uml_draft.mmd (first design), uml_final.mmd (current design)
 ```
 
 ## Design notes, trade-offs, and known limitations
@@ -195,6 +216,15 @@ a 1B model, character-based chunking — plus an honest list of what this
 project does **not** do yet (streaming responses, hybrid search / reranking,
 retrieval-quality evals, rate limiting) lives in
 [docs/architecture.md](docs/architecture.md).
+
+## Project documents
+
+| File | Purpose |
+|---|---|
+| [`AGENTS.md`](AGENTS.md) | Rules and verification steps any coding agent must follow in this repo |
+| [`ai_interactions.md`](ai_interactions.md) | The build phases and how AI tools were used in each |
+| [`reflection.md`](reflection.md) | Design decisions, trade-offs and what I would do differently |
+| [`docs/architecture.md`](docs/architecture.md) | Reasoning behind the main technical choices |
 
 ## License
 

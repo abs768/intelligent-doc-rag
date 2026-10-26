@@ -8,6 +8,7 @@ import com.chatassistant.aichatassistant.dto.RetrievalResult;
 import com.chatassistant.aichatassistant.dto.RetrievedChunk;
 import com.chatassistant.aichatassistant.entity.Conversation;
 import com.chatassistant.aichatassistant.entity.Message;
+import com.chatassistant.aichatassistant.rag.RagRetriever;
 import com.chatassistant.aichatassistant.repository.ConversationRepository;
 import com.chatassistant.aichatassistant.repository.MessageRepository;
 import org.slf4j.Logger;
@@ -62,18 +63,18 @@ public class ChatService {
     private final ConversationRepository conversationRepo;
     private final MessageRepository messageRepo;
     private final OllamaService ollamaService;
-    private final DocumentService documentService;
+    private final RagRetriever retriever;
 
     public ChatService(
             ConversationRepository conversationRepo,
             MessageRepository messageRepo,
             OllamaService ollamaService,
-            DocumentService documentService
+            RagRetriever retriever
     ) {
         this.conversationRepo = conversationRepo;
         this.messageRepo = messageRepo;
         this.ollamaService = ollamaService;
-        this.documentService = documentService;
+        this.retriever = retriever;
     }
 
     @Transactional
@@ -105,7 +106,7 @@ public class ChatService {
                         .collect(Collectors.toList());
             }
 
-            RetrievalResult retrieval = documentService.findRelevantChunksWithSources(
+            RetrievalResult retrieval = retriever.findRelevantChunksWithSources(
                     userId, req.message(), RAG_CHUNK_LIMIT, docIds
             );
 
@@ -179,7 +180,7 @@ public class ChatService {
                     .map(UUID::fromString)
                     .collect(Collectors.toList());
         }
-        List<RetrievedChunk> chunks = documentService.findRelevantChunksForCitations(
+        List<RetrievedChunk> chunks = retriever.findRelevantChunksForCitations(
                 userId, req.message(), RAG_CHUNK_LIMIT, docIds);
         long retrievalMs = System.currentTimeMillis() - t0;
 

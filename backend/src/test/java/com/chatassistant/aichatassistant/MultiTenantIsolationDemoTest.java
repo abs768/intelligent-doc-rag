@@ -140,6 +140,7 @@ class MultiTenantIsolationDemoTest {
     // ======================== TEST FIXTURES ========================
 
     @Autowired private com.chatassistant.aichatassistant.service.DocumentService documentService;
+    @Autowired private com.chatassistant.aichatassistant.rag.RagRetriever retriever;
     @Autowired private DocumentRepository documentRepository;
     @Autowired private QdrantService qdrantService;
     @Autowired private EmbeddingService embeddingService;
@@ -177,7 +178,7 @@ class MultiTenantIsolationDemoTest {
         // WHEN: Tenant A searches for "secret McKinsey code"
         // THEN: Tenant A finds the document
         // ──────────────────────────────────────────────────────
-        List<String> tenantAResults = documentService.findRelevantChunks(
+        List<String> tenantAResults = retriever.findRelevantChunks(
                 TENANT_A,
                 "secret McKinsey code",
                 5,

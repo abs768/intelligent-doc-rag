@@ -1,0 +1,88 @@
+%% DocGPT: first design (commit 4f28e39, Jan 2026).
+%% Classic Spring layering. DocumentService did every RAG step itself:
+%% chunking, embedding calls, vector upserts and retrieval.
+classDiagram
+    direction TB
+
+    class DocumentController {
+        +upload(file)
+        +list()
+        +delete(id)
+    }
+    class ChatController {
+        +chat(ChatRequest) ChatResponse
+    }
+    class AuthController {
+        +register(RegisterRequest)
+        +login(LoginRequest)
+    }
+
+    class DocumentService {
+        +ingestDocument(userId, filename, content) UUID
+        +listDocuments(userId) List~Document~
+        +findRelevantChunks(userId, query, limit) List~String~
+        +deleteDocument(userId, documentId)
+        +deleteAllForUser(userId)
+        -chunk(text) List~String~
+    }
+    class ChatService {
+        +chat(ChatRequest) ChatResponse
+        -buildRagPrompt(conv, req, userId) String
+        -buildPrompt(system, history) String
+    }
+    class AuthService {
+        +register(RegisterRequest) AuthResponse
+        +login(LoginRequest) AuthResponse
+    }
+    class JwtService {
+        +generateToken(user) String
+        +isTokenValid(token, user) boolean
+    }
+    class EmbeddingService {
+        +embed(text) List~Float~
+    }
+    class QdrantService {
+        +upsertChunk(userId, documentId, index, vector, content, filename)
+        +search(userId, vector, limit, documentIds) List~String~
+        +deleteDocument(userId, documentId)
+    }
+    class OllamaService {
+        +generate(prompt) String
+    }
+
+    class Document {
+        <<entity>>
+        id: UUID
+        userId: UUID
+        filename: String
+        status: Status
+        chunkCount: int
+    }
+    class Conversation {
+        <<entity>>
+        id: UUID
+        userId: UUID
+    }
+    class Message {
+        <<entity>>
+        role: String
+        content: String
+    }
+    class User {
+        <<entity>>
+        email: String
+        passwordHash: String
+    }
+
+    DocumentController --> DocumentService
+    ChatController --> ChatService
+    AuthController --> AuthService
+    AuthService --> JwtService
+    ChatService --> DocumentService : retrieval
+    ChatService --> OllamaService : generation
+    DocumentService --> EmbeddingService
+    DocumentService --> QdrantService
+    DocumentService ..> Document
+    ChatService ..> Conversation
+    Conversation "1" *-- "*" Message
+    AuthService ..> User
