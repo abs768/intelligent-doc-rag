@@ -60,7 +60,7 @@ in this README links to the code, test, or report that backs it.
 | Invalid LLM JSON is retried, then rejected | [OllamaServiceStructuredTest](backend/src/test/java/com/chatassistant/aichatassistant/service/OllamaServiceStructuredTest.java) |
 | Model choice is measured, not guessed | [docs/benchmark.md](docs/benchmark.md) — methodology + a `Reproducing` block |
 
-**Tests: 37 backend + 18 frontend.** 32 backend tests run with no
+**Tests: 51 backend + 18 frontend.** 46 backend tests run with no
 infrastructure (`mvn test` with the two Testcontainers classes excluded); the
 remaining 5 spin up real Postgres and Qdrant containers and need Docker
 running. The 18 frontend tests (React Testing Library) cover the auth flow,
@@ -182,8 +182,8 @@ More detail (troubleshooting, first-use walkthrough): [QUICKSTART.md](QUICKSTART
 
 ```bash
 cd backend
-mvn test               # all 37 (needs Docker for the 5 Testcontainers tests)
-mvn test -Dtest='!GroundedRagIntegrationTest,!MultiTenantIsolationDemoTest'   # 32, no infra
+mvn test               # all 51 (needs Docker for the 5 Testcontainers tests)
+mvn test -Dtest='!GroundedRagIntegrationTest,!MultiTenantIsolationDemoTest'   # 46, no infra
 
 cd frontend
 npm test -- --watchAll=false   # 18 React Testing Library tests, no infra

@@ -110,7 +110,7 @@ capability for a single-node deployment.
   while the stores stay real.
 - **Frontend tests** (React Testing Library) for the auth flow, the chat UI
   (citation chips, telemetry, send gating), and the API client.
-- 37 backend tests (32 need no infrastructure, 5 need Docker) + 18 frontend
+- 51 backend tests (46 need no infrastructure, 5 need Docker) + 18 frontend
   tests. All run in CI.
 
 ## Known limitations / roadmap
